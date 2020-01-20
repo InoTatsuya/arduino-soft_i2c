@@ -2,11 +2,22 @@ typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
-#define SCL 2
-#define SDA 3
-#define ADDR 0x44
 #define ACK 0x00
 #define NACK 0x01
+
+struct str_i2c {
+  uchar scl;
+  uchar sda;
+  uchar addr;
+};
+
+struct str_i2c i2c[5] = {
+    {2,3,0x44}, // ch0
+    {4,5,0x44}, // ch1
+    {6,7,0x44}, // ch2
+    {10,11,0x44}, // ch3
+    {12,13,0x44} // ch4
+  };
 
 //#define INTERVAL uint(1572) // 1kHz
 #define INTERVAL uint(2000) // 1kHz
@@ -18,16 +29,15 @@ void setup() {
   uint cnt = 0;
 
   Serial.begin(9600);
-  digitalWrite(SDA, HIGH);
-  pinMode(SDA, OUTPUT);
-  digitalWrite(SCL, HIGH);
-  pinMode(SCL, OUTPUT);
+  digitalWrite(i2c[0].sda, HIGH);
+  pinMode(i2c[0].sda, OUTPUT);
+  digitalWrite(i2c[0].scl, HIGH);
+  pinMode(i2c[0].scl, OUTPUT);
   delay(1);
-  ss_write(ADDR, 0x30A2); // soft reset
+  ss_write(i2c[0].addr, 0x30A2); // soft reset
   delay(1);
-  ss_write(ADDR, 0xF32D); // read status registaer
-  delay(1);
-  ss_read(ADDR, 3, data);
+//  ss_write(i2c[0].addr, 0xF32D); //
+//  ss_read(i2c[0].addr, 3, data); // read status registaer 
   delay(5000);
 
 }
@@ -37,10 +47,11 @@ void loop() {
 
   for(cnt = 0; cnt < 6; cnt++)data[cnt] = 0;
 
-  ss_write(ADDR, 0x2400); // read data single shot
+  ss_write(i2c[0].addr, 0x2400); // read data single shot
   delay(20);
-  ss_read(ADDR, 6, data);
-  delay(1);
+  ss_read(i2c[0].addr, 6, data);
+  Serial.println(float( ( ( ( data[0] << 8 ) | data[1] ) * 175.0 ) / ( 0xFFFF - 1 ) - 45) );
+  Serial.println(float( ( ( ( data[3] << 8 ) | data[4] ) * 100.0 ) / ( 0xFFFF - 1 ) ));
 
   delay(5000);
 }
@@ -64,15 +75,15 @@ uchar ss_send(uchar data){
   uchar result = 0;
 
   for(cnt = 0; cnt <8; cnt++){
-    digitalWrite(SDA, ( data >> 7 ) );
+    digitalWrite(i2c[0].sda, ( data >> 7 ) );
     data <<= 1;
     ss_oneclock();
   }
-  pinMode(SDA, INPUT);
+  pinMode(i2c[0].sda, INPUT);
   ss_oneclock();
-  result = digitalRead(SDA);
+  result = digitalRead(i2c[0].sda);
 //  delay(1);
-  pinMode(SDA, OUTPUT);
+  pinMode(i2c[0].sda, OUTPUT);
 
   return !result;
 }
@@ -89,8 +100,8 @@ void ss_read(uchar addr, uchar num, uchar *data){
     ss_read_byte(ACK, &(data[cnt]));
   }
   ss_read_byte(NACK, &data[cnt]);
-  Serial.println(float( ( ( ( data[0] << 8 ) | data[1] ) * 175.0 ) / ( 0xFFFF - 1 ) - 45) );
-  Serial.println(float( ( ( ( data[3] << 8 ) | data[4] ) * 100.0 ) / ( 0xFFFF - 1 ) ));
+//  Serial.println(float( ( ( ( data[0] << 8 ) | data[1] ) * 175.0 ) / ( 0xFFFF - 1 ) - 45) );
+//  Serial.println(float( ( ( ( data[3] << 8 ) | data[4] ) * 100.0 ) / ( 0xFFFF - 1 ) ));
 
   ss_stopbit();
 
@@ -101,21 +112,21 @@ uchar ss_read_byte(uchar ack, uchar *data){
   uchar result = 0;
   uchar test = 0;
 
-  pinMode(SDA, INPUT);
+  pinMode(i2c[0].sda, INPUT);
   for(cnt = 0; cnt <8; cnt++){
 //    *data |= ss_oneclock();
 //    *data <<= 1;
     *data |= ss_oneclock() << (7 - cnt);
 //    test |= ss_oneclock() << (7 - cnt);
 //    Serial.println(ss_oneclock() );
-//    test |= PIND & _BV(SDA);
+//    test |= PIND & _BV(i2c[0].sda);
 //    test <<= 1;
   }
 //  Serial.println(test, HEX);
   test = 0;
 
-  digitalWrite(SDA, ack);
-  pinMode(SDA, OUTPUT);
+  digitalWrite(i2c[0].sda, ack);
+  pinMode(i2c[0].sda, OUTPUT);
   result = ss_oneclock();
 //  delay(1);
 
@@ -125,11 +136,11 @@ uchar ss_read_byte(uchar ack, uchar *data){
 void ss_startbit(){
   uint cnt = 0;
 
-  digitalWrite(SDA, LOW);
+  digitalWrite(i2c[0].sda, LOW);
   for(cnt = 0; cnt < INTERVAL; cnt++ ){
     asm("nop");
   }
-  digitalWrite(SCL, LOW);
+  digitalWrite(i2c[0].scl, LOW);
   for(cnt = 0; cnt < INTERVAL; cnt++ ){
     asm("nop");
   }
@@ -138,11 +149,11 @@ void ss_startbit(){
 void ss_stopbit(){
   uint cnt = 0;
 
-  digitalWrite(SCL, HIGH);
+  digitalWrite(i2c[0].scl, HIGH);
   for(cnt = 0; cnt < INTERVAL; cnt++ ){
     asm("nop");
   }
-  digitalWrite(SDA, HIGH);
+  digitalWrite(i2c[0].sda, HIGH);
   for(cnt = 0; cnt < INTERVAL; cnt++ ){
     asm("nop");
   }
@@ -152,12 +163,12 @@ uchar ss_oneclock() {
   uint cnt = 0;
   uchar var = 0;
 
-  digitalWrite(SCL, HIGH);
+  digitalWrite(i2c[0].scl, HIGH);
   for(cnt = 0; cnt < INTERVAL; cnt++){
     asm("nop");
   }
-  var = digitalRead(SDA);
-  digitalWrite(SCL, LOW);
+  var = digitalRead(i2c[0].sda);
+  digitalWrite(i2c[0].scl, LOW);
   for(cnt = 0; cnt < INTERVAL; cnt++){
     asm("nop");
   }
